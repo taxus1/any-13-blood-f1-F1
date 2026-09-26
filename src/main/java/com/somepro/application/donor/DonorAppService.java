@@ -16,9 +16,12 @@ import reactor.core.publisher.Mono;
  * 献血者档案应用服务：编排登记、修改、查看、删除、分页查询用例。
  *
  * 出入参都是领域对象 / 应用命令，不认识 PO、VO。
- * 登记编号由应用层在登记时通过仓储按年取号并分配；取号与插入是两次独立调用，
- * 并发下可能拿到同一个号 —— 由 uk_donor_no 唯一索引兜底，撞号时用同一份命令重建
- * 聚合重新取号重试（编号只允许分配一次，所以重试必须重建聚合，不能在原对象上改号）。
+ * 编号防撞两条链都走「先领域校验 → 再查库挡重 → 最后落库」，任何一步不过都不写库：
+ * - 登记：调用方指定编号则撞号即拒（不重试，号是人选的）；未指定则由系统按年取号，
+ *   取号与插入是两次独立调用，并发撞号由 uk_donor_no 唯一索引兜底，用同一份命令重建
+ *   聚合重新取号重试（编号只允许分配一次，所以重试必须重建聚合，不能在原对象上改号）。
+ * - 修改：换号前查重，撞上别人（含已删除档案）在用的号 → 整次修改拒绝落库，原档案保持
+ *   不动；并发下两人同时换同一个新号，由 uk_donor_no 兜底，后到的收到明确失败。
  */
 @Service
 public class DonorAppService {
@@ -33,7 +36,23 @@ public class DonorAppService {
     }
 
     public Mono<Donor> create(CreateDonorCmd cmd) {
+        if (cmd.donorNo() != null && !cmd.donorNo().isBlank()) {
+            return createWithGivenNo(cmd);
+        }
         return assignNoAndSave(cmd, 1);
+    }
+
+    /** 调用方指定编号登记：先过领域校验（格式），再查重挡撞号；并发兜底靠 uk_donor_no，不换号重试。 */
+    private Mono<Donor> createWithGivenNo(CreateDonorCmd cmd) {
+        Donor donor = Donor.register(cmd.name(), cmd.gender(), cmd.bloodGroup(), cmd.rh(), cmd.phone());
+        donor.assignDonorNo(cmd.donorNo());
+        String no = donor.getDonorNo();
+        return donorRepository.existsByDonorNo(no)
+                .flatMap(exists -> exists
+                        ? Mono.error(new BizException("献血者编号已被占用：" + no))
+                        : donorRepository.save(donor))
+                .onErrorResume(DuplicateKeyException.class,
+                        e -> Mono.error(new BizException("献血者编号已被占用：" + no + "，请换一个")));
     }
 
     private Mono<Donor> assignNoAndSave(CreateDonorCmd cmd, int attempt) {
@@ -56,12 +75,25 @@ public class DonorAppService {
         return donorRepository.findById(id)
                 .switchIfEmpty(Mono.error(new BizException("献血者不存在或已删除：id=" + id)))
                 .flatMap(donor -> {
+                    // 先过领域校验：任何一项非法都在落库前抛出，原档案保持不动
                     donor.updateProfile(cmd.name(), cmd.gender(), cmd.bloodGroup(), cmd.rh(), cmd.phone());
                     if (cmd.status() != null && !cmd.status().isBlank()) {
                         donor.changeStatus(DonorStatus.parse(cmd.status()));
                     }
-                    return donorRepository.save(donor);
-                });
+                    String newNo = cmd.donorNo() == null ? null : cmd.donorNo().trim();
+                    if (newNo == null || newNo.isEmpty() || newNo.equals(donor.getDonorNo())) {
+                        return donorRepository.save(donor);
+                    }
+                    // 换号：先校验格式（只动内存对象），再查库挡撞号；撞号则整次修改不落库
+                    donor.changeDonorNo(newNo);
+                    return donorRepository.existsByDonorNo(newNo)
+                            .flatMap(exists -> exists
+                                    ? Mono.error(new BizException("献血者编号已被占用：" + newNo + "，修改未生效"))
+                                    : donorRepository.save(donor));
+                })
+                // 并发换同一个新号：唯一索引兜底，后到者收到明确失败而不是 500
+                .onErrorResume(DuplicateKeyException.class,
+                        e -> Mono.error(new BizException("献血者编号已被占用，修改未生效，请换一个编号")));
     }
 
     public Mono<Donor> detail(Long id) {

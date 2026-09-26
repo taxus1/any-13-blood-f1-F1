@@ -30,7 +30,8 @@ public final class DonorVoConverter {
                 Gender.parse(req.gender()),
                 BloodGroup.parse(req.bloodGroup()),
                 RhFactor.parse(req.rh()),
-                blankToNull(req.phone()));
+                blankToNull(req.phone()),
+                blankToNull(req.donorNo()));
     }
 
     public static UpdateDonorCmd toCmd(UpdateDonorRequest req) {
@@ -40,7 +41,8 @@ public final class DonorVoConverter {
                 BloodGroup.parse(req.bloodGroup()),
                 RhFactor.parse(req.rh()),
                 blankToNull(req.phone()),
-                blankToNull(req.status()));
+                blankToNull(req.status()),
+                blankToNull(req.donorNo()));
     }
 
     public static DonorVO toVo(Donor d) {

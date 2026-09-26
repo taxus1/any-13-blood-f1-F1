@@ -8,7 +8,8 @@ import java.io.Serializable;
 /**
  * 登记献血者请求体。
  * 枚举码统一大写（MALE/FEMALE、A/B/AB/O、POSITIVE/NEGATIVE）；非法取值由领域枚举解析给出明确提示。
- * 编号、累计量、最近献血时刻、状态均不在请求里：编号系统取，后两项随献血业务回写，新建默认 ACTIVE。
+ * donorNo 可空：指定了就用指定的（与现有编号撞了会被挡回），不指定由系统按年取号。
+ * 累计量、最近献血时刻、状态均不在请求里：前两项随献血业务回写，新建默认 ACTIVE。
  */
 public record CreateDonorRequest(
         @NotBlank(message = "姓名不能为空")
@@ -30,6 +31,10 @@ public record CreateDonorRequest(
         String rh,
 
         @Pattern(regexp = "^$|^[0-9+\\-() ]{3,20}$", message = "联系电话格式不正确")
-        String phone)
+        String phone,
+
+        @Pattern(regexp = "^$|^DNR-\\d{4}-\\d{4,}$",
+                message = "献血者编号格式应为 DNR-年份-序号，如 DNR-2026-0001")
+        String donorNo)
         implements Serializable {
 }

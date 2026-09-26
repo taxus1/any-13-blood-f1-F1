@@ -14,7 +14,8 @@ import java.util.regex.Pattern;
  * 献血者档案聚合根（领域层）。
  *
  * 一个人对应一条档案；编号 {@code donorNo} 全局唯一（DNR-yyyy-序号），一个号只归一个人。
- * 血型（ABO + Rh）是档案的固有属性，血袋建档时从这里原样带出。
+ * 登记时可指定编号（撞号即拒），也可由系统按年取号；改档案允许换号，但换成别人在用的号
+ * 会被挡回且原档案不动。血型（ABO + Rh）是档案的固有属性，血袋建档时从这里原样带出。
  *
  * 纯领域对象，不带任何持久化/接口注解：落库形状见 DonorPO，对外形状见 DonorVO。
  */
@@ -60,18 +61,32 @@ public class Donor extends BaseEntity {
         return donor;
     }
 
-    /** 分配全局唯一编号（由仓储按年取号），只允许分配一次。 */
+    /** 分配全局唯一编号（由仓储按年取号），只允许分配一次；后续换号走 {@link #changeDonorNo}。 */
     public void assignDonorNo(String donorNo) {
-        if (donorNo == null || donorNo.isBlank()) {
-            throw new BizException("献血者编号不能为空");
-        }
-        if (!NO_PATTERN.matcher(donorNo).matches()) {
-            throw new BizException("献血者编号格式非法：" + donorNo + "，应为 DNR-年份-序号，如 DNR-2026-0001");
-        }
         if (this.donorNo != null) {
             throw new BizException("献血者编号已分配，不允许更改");
         }
-        this.donorNo = donorNo;
+        this.donorNo = requireValidNo(donorNo);
+    }
+
+    /**
+     * 改编号（更正错号 / 换号）：这里只校验格式，「新号有没有被别人占用」由应用层查库挡下——
+     * 占用则整次修改拒绝落库，原档案保持不动；新号没人用才改得动。
+     */
+    public void changeDonorNo(String newDonorNo) {
+        this.donorNo = requireValidNo(newDonorNo);
+    }
+
+    /** 编号格式校验：非空 + DNR-年份-序号。 */
+    private static String requireValidNo(String donorNo) {
+        if (donorNo == null || donorNo.isBlank()) {
+            throw new BizException("献血者编号不能为空");
+        }
+        String no = donorNo.trim();
+        if (!NO_PATTERN.matcher(no).matches()) {
+            throw new BizException("献血者编号格式非法：" + no + "，应为 DNR-年份-序号，如 DNR-2026-0001");
+        }
+        return no;
     }
 
     /** 改档案：姓名、性别、血型、Rh、联系电话都允许更正（填错了能改）。 */

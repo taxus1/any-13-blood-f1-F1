@@ -24,4 +24,14 @@ public interface DonorMapper extends BaseMapper<DonorPO> {
     @Select("SELECT MAX(CAST(SUBSTRING_INDEX(donor_no, '-', -1) AS UNSIGNED)) "
             + "FROM t_blood_donor WHERE donor_no LIKE CONCAT('DNR-', #{year}, '-%')")
     Integer maxSerialOfYear(@Param("year") int year);
+
+    /**
+     * 按编号计数（含已逻辑删除行）。
+     *
+     * 这里是手写原生 SQL，@TableLogic 不会自动追加 del_flag=0 —— 这正是期望行为：
+     * 物理唯一索引 uk_donor_no 同样不认 del_flag，软删行占着的号也算占用，
+     * 应用层据此在登记/换号前挡回，避免把唯一索引冲突留成 500。
+     */
+    @Select("SELECT COUNT(*) FROM t_blood_donor WHERE donor_no = #{donorNo}")
+    int countByDonorNo(@Param("donorNo") String donorNo);
 }

@@ -2,6 +2,7 @@ package com.somepro.interfaces.rest.donor;
 
 import com.somepro.application.donor.DonorAppService;
 import com.somepro.common.Result;
+import com.somepro.common.exception.BizException;
 import com.somepro.domain.donor.model.DonorQuery;
 import com.somepro.domain.donor.model.DonorStatus;
 import com.somepro.domain.shared.model.BloodGroup;
@@ -40,7 +41,7 @@ public class DonorController {
         this.donorAppService = donorAppService;
     }
 
-    /** 登记新献血者：编号由系统按年取号（DNR-yyyy-序号），状态默认 ACTIVE。 */
+    /** 登记新献血者：donorNo 传了用指定的（撞号即拒），不传由系统按年取号；状态默认 ACTIVE。 */
     @PostMapping
     public Mono<Result<DonorVO>> create(@Valid @RequestBody CreateDonorRequest request) {
         return donorAppService.create(DonorVoConverter.toCmd(request))
@@ -48,7 +49,10 @@ public class DonorController {
                 .map(Result::ok);
     }
 
-    /** 改档案：姓名/性别/血型/Rh/电话可更正，status 传了就一并调整。 */
+    /**
+     * 改档案：姓名/性别/血型/Rh/电话可更正，status 传了就一并调整；
+     * donorNo 传了表示换号——撞别人在用的号会被挡回且原档案不动，没人用的新号才改得动。
+     */
     @PutMapping("/{id}")
     public Mono<Result<DonorVO>> update(@PathVariable Long id,
                                         @Valid @RequestBody UpdateDonorRequest request) {
@@ -67,7 +71,7 @@ public class DonorController {
 
     /**
      * 分页名单：按编号、姓名、血型、Rh、状态随意组合；都不填翻整份名单。
-     * 每行带 donorNo，方便与纸质单对号。
+     * 每行带 donorNo，方便与纸质单对号；pageNum/pageSize 由请求决定，均须为正整数。
      */
     @GetMapping
     public Mono<Result<PageVO<DonorVO>>> page(
@@ -78,6 +82,9 @@ public class DonorController {
             @RequestParam(required = false) String bloodGroup,
             @RequestParam(required = false) String rh,
             @RequestParam(required = false) String status) {
+        if (pageNum < 1 || pageSize < 1) {
+            throw new BizException("分页参数非法：pageNum、pageSize 必须为正整数");
+        }
         DonorQuery query = new DonorQuery(
                 pageNum, pageSize, donorNo, name,
                 blankToNull(bloodGroup) == null ? null : BloodGroup.parse(bloodGroup),

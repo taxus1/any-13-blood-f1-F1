@@ -61,6 +61,11 @@ public class DonorRepositoryImpl extends BlockingJdbcSupport implements DonorRep
     }
 
     @Override
+    public Mono<Boolean> existsByDonorNo(String donorNo) {
+        return blocking(() -> donorMapper.countByDonorNo(donorNo.trim()) > 0);
+    }
+
+    @Override
     public Mono<PageResult<Donor>> page(DonorQuery q) {
         return this.<PageResult<Donor>>blocking(() -> {
             try {
