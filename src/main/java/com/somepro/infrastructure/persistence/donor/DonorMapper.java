@@ -24,4 +24,14 @@ public interface DonorMapper extends BaseMapper<DonorPO> {
     @Select("SELECT MAX(CAST(SUBSTRING_INDEX(donor_no, '-', -1) AS UNSIGNED)) "
             + "FROM t_blood_donor WHERE donor_no LIKE CONCAT('DNR-', #{year}, '-%')")
     Integer maxSerialOfYear(@Param("year") int year);
+
+    /**
+     * 按编号计数（含已逻辑删除的档案）。
+     *
+     * 刻意不加 del_flag 条件：物理唯一索引 uk_donor_no 不认软删，已删除的号也算占用，
+     * 查重语义必须和索引一致，否则会漏判、把冲突留到落库时才炸。
+     * 不用 MyBatis-Plus 的 selectCount —— 它会因 @TableLogic 自动追加 del_flag=0。
+     */
+    @Select("SELECT COUNT(*) FROM t_blood_donor WHERE donor_no = #{donorNo}")
+    long countByDonorNoIncludeDeleted(@Param("donorNo") String donorNo);
 }

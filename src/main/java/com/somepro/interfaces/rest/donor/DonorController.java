@@ -40,7 +40,7 @@ public class DonorController {
         this.donorAppService = donorAppService;
     }
 
-    /** 登记新献血者：编号由系统按年取号（DNR-yyyy-序号），状态默认 ACTIVE。 */
+    /** 登记新献血者：donorNo 可空 —— 指定了撞号挡回，不填由系统按年取号（DNR-yyyy-序号）；状态默认 ACTIVE。 */
     @PostMapping
     public Mono<Result<DonorVO>> create(@Valid @RequestBody CreateDonorRequest request) {
         return donorAppService.create(DonorVoConverter.toCmd(request))
@@ -48,7 +48,7 @@ public class DonorController {
                 .map(Result::ok);
     }
 
-    /** 改档案：姓名/性别/血型/Rh/电话可更正，status 传了就一并调整。 */
+    /** 改档案：姓名/性别/血型/Rh/电话可更正，status 传了就一并调整；donorNo 传了表示改号，撞别人在用的号挡回且原档案不动。 */
     @PutMapping("/{id}")
     public Mono<Result<DonorVO>> update(@PathVariable Long id,
                                         @Valid @RequestBody UpdateDonorRequest request) {

@@ -60,18 +60,32 @@ public class Donor extends BaseEntity {
         return donor;
     }
 
-    /** 分配全局唯一编号（由仓储按年取号），只允许分配一次。 */
+    /** 分配全局唯一编号（由仓储按年取号或录入员指定），只允许分配一次。 */
     public void assignDonorNo(String donorNo) {
+        validateNoFormat(donorNo);
+        if (this.donorNo != null) {
+            throw new BizException("献血者编号已分配，不允许更改");
+        }
+        this.donorNo = donorNo;
+    }
+
+    /**
+     * 更正编号：允许改成一个新的、没人占用的号（登记时填错了能改）。
+     * 「有没有被别人占用」不在聚合内判断 —— 由应用层先查库（含软删记录），
+     * 物理唯一索引 uk_donor_no 兜底；撞号时应用层直接挡回，本方法不会被走到。
+     */
+    public void changeDonorNo(String donorNo) {
+        validateNoFormat(donorNo);
+        this.donorNo = donorNo;
+    }
+
+    private static void validateNoFormat(String donorNo) {
         if (donorNo == null || donorNo.isBlank()) {
             throw new BizException("献血者编号不能为空");
         }
         if (!NO_PATTERN.matcher(donorNo).matches()) {
             throw new BizException("献血者编号格式非法：" + donorNo + "，应为 DNR-年份-序号，如 DNR-2026-0001");
         }
-        if (this.donorNo != null) {
-            throw new BizException("献血者编号已分配，不允许更改");
-        }
-        this.donorNo = donorNo;
     }
 
     /** 改档案：姓名、性别、血型、Rh、联系电话都允许更正（填错了能改）。 */

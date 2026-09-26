@@ -7,8 +7,9 @@ import java.io.Serializable;
 
 /**
  * 修改献血者档案请求体。
- * 编号不可改（路径上的 id 定位记录）；累计量/最近献血时刻不由编辑接口改写。
  * status 可空：不传表示只改资料、不动状态。
+ * donorNo 可空：传了表示更正编号 —— 改成别人正在用的号会被挡回（原档案不动），
+ * 改成没人用的新号才生效；不传不动编号。累计量/最近献血时刻不由编辑接口改写。
  */
 public record UpdateDonorRequest(
         @NotBlank(message = "姓名不能为空")
@@ -34,6 +35,9 @@ public record UpdateDonorRequest(
 
         @Pattern(regexp = "ACTIVE|DEFERRED|BLOCKED|", flags = Pattern.Flag.CASE_INSENSITIVE,
                 message = "状态取值 ACTIVE 可献 / DEFERRED 暂缓 / BLOCKED 屏蔽")
-        String status)
+        String status,
+
+        @Pattern(regexp = "DNR-\\d{4}-\\d{4,}", message = "编号格式应为 DNR-年份-序号，如 DNR-2026-0001")
+        String donorNo)
         implements Serializable {
 }

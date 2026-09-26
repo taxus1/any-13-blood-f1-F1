@@ -26,4 +26,11 @@ public interface DonorRepository {
      * 由基础设施层走原生 SQL 扫描最大序号，并发碰撞靠唯一索引兜底 + 重试。
      */
     Mono<String> nextDonorNo();
+
+    /**
+     * 编号是否已被占用（含已逻辑删除的档案）。
+     * 物理唯一索引 uk_donor_no 不认 del_flag：号一旦用过，即使人删了也不能再落到别人头上，
+     * 所以查重必须把软删记录算进去，与索引语义保持一致。
+     */
+    Mono<Boolean> existsByDonorNo(String donorNo);
 }

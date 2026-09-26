@@ -112,4 +112,9 @@ public class DonorRepositoryImpl extends BlockingJdbcSupport implements DonorRep
             return String.format(NO_FORMAT, year, (max == null ? 0 : max) + 1);
         });
     }
+
+    @Override
+    public Mono<Boolean> existsByDonorNo(String donorNo) {
+        return blocking(() -> donorMapper.countByDonorNoIncludeDeleted(donorNo) > 0);
+    }
 }
